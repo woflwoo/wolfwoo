@@ -29,8 +29,8 @@
 
 <script>
 (async () => {
-  const LIFF_ID = "YOUR_LIFF_ID";  // ← 改成你的
-  const API_BASE = "https://your-n8n-domain/webhook"; // ← 你的 n8n webhook base
+  const LIFF_ID = "2007987243-36ny9WQ7";  // ← 改成你的
+  const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 你的 n8n webhook base
   await liff.init({ liffId: LIFF_ID });
   if (!liff.isLoggedIn()) liff.login();
 
