@@ -1,0 +1,80 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>問題工單</title>
+<script src="https://static.line-scdn.net/liff/edge/versions/2.23.1/sdk.js"></script>
+<body style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;padding:16px">
+<h2 id="title">問題工單</h2>
+<form id="ticketForm" style="display:none">
+  <label>在校生？
+    <select name="is_student"><option value="是">是</option><option value="否">否</option></select>
+  </label><br/><br/>
+  <label>問題類別
+    <input name="category" placeholder="教務處 / 學務處 / 總務處 / 輔導室" required/>
+  </label><br/><br/>
+  <label>問題說明
+    <textarea name="description" required></textarea>
+  </label><br/><br/>
+  <label>電話 <input name="phone" required/></label><br/><br/>
+  <label>方便連絡時間 <input name="contact_time" placeholder="例如 14:00-17:00"/></label><br/><br/>
+  <button type="submit">送出工單</button>
+</form>
+
+<form id="resolveForm" style="display:none">
+  <p>票號：<span id="tid"></span></p>
+  <label>處理人姓名 <input name="handler_name" required/></label><br/><br/>
+  <button type="submit">確認結案</button>
+</form>
+
+<p id="msg"></p>
+
+<script>
+(async () => {
+  const LIFF_ID = "YOUR_LIFF_ID";  // ← 改成你的
+  const API_BASE = "https://your-n8n-domain/webhook"; // ← 你的 n8n webhook base
+  await liff.init({ liffId: LIFF_ID });
+  if (!liff.isLoggedIn()) liff.login();
+
+  const u = new URL(location.href);
+  const action = u.searchParams.get("action") || "ticket";
+  const ticketId = u.searchParams.get("ticketId") || "";
+  const token = u.searchParams.get("token") || "";
+
+  const profile = await liff.getProfile().catch(()=>null);
+  const context = liff.getContext?.() || {};
+  const userId = profile?.userId || context.userId || "";
+  const displayName = profile?.displayName || "";
+
+  const msg = (t)=>document.getElementById('msg').innerText=t;
+
+  if (action === "ticket") {
+    document.getElementById('title').innerText = "問題工單";
+    ticketForm.style.display = "block";
+    ticketForm.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const payload = Object.fromEntries(new FormData(ticketForm));
+      payload.is_student = payload.is_student === "是";
+      payload.user_id = userId;
+      payload.user_name = displayName;
+      const r = await fetch(`${API_BASE}/ticket`, {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json().catch(()=>({}));
+      msg(j.message || "已送出，謝謝！");
+      setTimeout(()=> liff.closeWindow?.(), 800);
+    });
+  } else if (action === "resolve") {
+    document.getElementById('title').innerText = "工單結案";
+    resolveForm.style.display = "block";
+    document.getElementById('tid').innerText = ticketId;
+    resolveForm.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const payload = Object.fromEntries(new FormData(resolveForm));
+      payload.ticket_id = ticketId; payload.token = token;
+      payload.handler_user_id = userId;
+      const r = await fetch(`${API_BASE}/resolve`, {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+      const j = await r.json().catch(()=>({}));
+      msg(j.message || "已結案，感謝！");
+      setTimeout(()=> liff.closeWindow?.(), 800);
+    });
+  }
+})();
+</script>
+</body></html>
