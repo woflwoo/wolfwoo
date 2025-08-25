@@ -109,15 +109,13 @@
 
   <script>
   (async () => {
-    const LIFF_ID  = "2007987243-36ny9WQ7";                    // ← 換成你的
-    // ✅ 建議用 Production：/webhook（而不是 /webhook/school）
-    //   你的 n8n 需要有兩條端點：POST /webhook/ticket、POST /webhook/resolve
-    const API_BASE = "https://wooow.zeabur.app/webhook/school";
+    const LIFF_ID  = "2007987243-36ny9WQ7"; // ← 換成你的
+    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ✅ 單一 webhook
 
     const $ = id => document.getElementById(id);
     const show = el => el.style.display = "block";
 
-    // 生成 00~23 的小時下拉（整點）
+    // 00~23 小時下拉（整點）
     function buildHourSelect(sel, placeholder){
       sel.innerHTML = "";
       const opt0 = document.createElement("option");
@@ -139,7 +137,7 @@
       const u = new URL(location.href);
       const action   = u.searchParams.get("action") || "ticket";
       const ticketId = u.searchParams.get("ticketId") || "";
-      const token    = u.searchParams.get("token") || ""; // 你後端不需用到可忽略
+      const token    = u.searchParams.get("token") || "";
 
       const profile = await liff.getProfile().catch(()=>null);
       const context = liff.getContext?.() || {};
@@ -175,14 +173,15 @@
           }
           delete payload.hour_start; delete payload.hour_end;
 
-          // 是否在校生：由身分別判斷
+          // 身分別 → 是否在校生
           payload.is_student = (payload.identity === "在校生");
           payload.user_id = userId;
           payload.user_name = displayName;
+          payload.kind = "ticket";               // ✅ 分流關鍵
 
           try {
-            // ⚡ 用 x-www-form-urlencoded 避免 CORS 預檢（最穩）
-            const r = await fetch(`${API_BASE}/ticket`, {
+            // 用 x-www-form-urlencoded 避免預檢
+            const r = await fetch(API_BASE, {
               method:"POST",
               headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
               body: new URLSearchParams(payload).toString()
@@ -202,7 +201,6 @@
       } else if (action === "resolve") {
         show($("resolveForm"));
         $("tid").value = ticketId;
-        // 預填處理人為 LINE 顯示名
         document.querySelector('input[name="handler_name"]').value = displayName || "";
 
         $("resolveForm").addEventListener("submit", async (e)=>{
@@ -210,19 +208,20 @@
 
           const payload = Object.fromEntries(new FormData(e.currentTarget));
           payload.ticket_id = ticketId;
-          payload.token = token;                 // 後端不驗證可忽略
+          payload.token = token;            // 後端不驗證可忽略
           payload.handler_user_id = userId;
+          payload.kind = "resolve";         // ✅ 分流關鍵
 
-          // ✅ 只有結案做防誤觸確認
+          // 只有結案做防誤觸確認
           if (!confirm(`確認將工單 ${ticketId} 標記為已處理？\n處理人：${payload.handler_name || displayName || "-"}`)) {
-            return; // 取消就不送出
+            return;
           }
 
           const btn = $("resolveBtn");
           btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
 
           try {
-            const r = await fetch(`${API_BASE}/resolve`, {
+            const r = await fetch(API_BASE, {
               method:"POST",
               headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
               body: new URLSearchParams(payload).toString()
