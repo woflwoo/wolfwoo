@@ -57,20 +57,32 @@
           </div>
           <div class="field">
             <label class="label">學號</label>
-            <input name="student_no" type="text" placeholder="未入學／已畢業 也可填">
+            <!-- placeholder 留白 -->
+            <input name="student_no" type="text" placeholder="">
           </div>
         </div>
 
-        <div class="field">
-          <label class="label">問題類別<span class="req">*</span></label>
-          <select name="category" required>
-            <option value="" disabled selected>請選擇</option>
-            <option>教務處</option>
-            <option>學務處</option>
-            <option>總務處</option>
-            <option>輔導室</option>
-            <option>其他</option>
-          </select>
+        <div class="row">
+          <div class="field">
+            <label class="label">身分別<span class="req">*</span></label>
+            <select name="identity" required>
+              <option value="" disabled selected>請選擇</option>
+              <option>未入學</option>
+              <option>在校生</option>
+              <option>已畢業</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">問題類別<span class="req">*</span></label>
+            <select name="category" required>
+              <option value="" disabled selected>請選擇</option>
+              <option>教務處</option>
+              <option>學務處</option>
+              <option>總務處</option>
+              <option>輔導室</option>
+              <option>其他</option>
+            </select>
+          </div>
         </div>
 
         <div class="field">
@@ -85,12 +97,12 @@
             <input name="phone" type="tel" inputmode="tel" placeholder="例如 0912-345-678" required>
           </div>
           <div class="field">
-            <label class="label">方便連絡時間</label>
+            <label class="label">方便連絡時間（24 小時制／整點）</label>
             <div class="row">
-              <input name="time_start" type="time" style="flex:1">
-              <input name="time_end"   type="time" style="flex:1">
+              <select name="hour_start"></select>
+              <select name="hour_end"></select>
             </div>
-            <div class="hint">將自動組成「HH:MM-HH:MM」。</div>
+            <div class="hint">開始選一次、結束選一次；將自動組成「HH:00-HH:00」。</div>
           </div>
         </div>
 
@@ -116,11 +128,28 @@
 
   <script>
   (async () => {
-    const LIFF_ID  = "2007987243-36ny9WQ7";                    // ← 換成你的
-    const API_BASE = "https://wooow.zeabur.app/webhook";        // ← 你的 n8n webhook base（無 /school）
+    const LIFF_ID  = "2007987243-36ny9WQ7";          // ← 換成你的
+    const API_BASE = "https://wooow.zeabur.app/webhook"; // ← 你的 n8n webhook base
 
     const $ = id => document.getElementById(id);
     const show = el => el.style.display = "block";
+
+    // 生成 00~23 的小時下拉
+    function buildHourSelect(sel, placeholder){
+      sel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = ""; opt0.textContent = placeholder || "請選擇"; opt0.disabled = true; opt0.selected = true;
+      sel.appendChild(opt0);
+      for(let h=0; h<24; h++){
+        const o = document.createElement("option");
+        o.value = String(h).padStart(2,"0");
+        o.textContent = String(h).padStart(2,"0");
+        sel.appendChild(o);
+      }
+      sel.style.flex = "1";
+      sel.style.height = "40px";
+      sel.style.borderRadius = "10px";
+    }
 
     try {
       await liff.init({ liffId: LIFF_ID });
@@ -138,6 +167,13 @@
 
       if (action === "ticket") {
         show($("ticketForm"));
+
+        // 時間選單
+        const hourStart = document.querySelector('select[name="hour_start"]');
+        const hourEnd   = document.querySelector('select[name="hour_end"]');
+        buildHourSelect(hourStart, "開始");
+        buildHourSelect(hourEnd,   "結束");
+
         $("ticketForm").addEventListener("submit", async (e)=>{
           e.preventDefault();
           const btn = $("submitBtn");
@@ -146,15 +182,21 @@
           const fd = new FormData(e.currentTarget);
           const payload = Object.fromEntries(fd);
 
-          // 時間組合：HH:MM-HH:MM
-          const t1 = (payload.time_start || "").trim();
-          const t2 = (payload.time_end   || "").trim();
-          payload.contact_time = (t1 && t2) ? `${t1}-${t2}` : (payload.contact_time || "");
-          delete payload.time_start; delete payload.time_end;
+          // contact_time：HH:00-HH:00（若兩者都有值）
+          const hs = payload.hour_start, he = payload.hour_end;
+          if (hs && he) {
+            if (Number(he) <= Number(hs)) {
+              $("msg").className = "msg err";
+              $("msg").innerText = "結束時間需晚於開始時間。";
+              btn.disabled = false;
+              return;
+            }
+            payload.contact_time = `${hs}:00-${he}:00`;
+          }
+          delete payload.hour_start; delete payload.hour_end;
 
-          // 後端相容：由學號推斷是否在校生
-          const sno = (payload.student_no || "").trim();
-          payload.is_student = sno && !/未入學|已畢業/i.test(sno);
+          // 後端相容：is_student 取自「身分別」
+          payload.is_student = (payload.identity === "在校生");
 
           payload.user_id = userId;
           payload.user_name = displayName;
