@@ -271,86 +271,151 @@
                   });
               });
 
-            } else if (action === "resolve") {
-              $("title").textContent = "查看／處理工單";
-              $("subtitle").textContent = "請確認工單內容，並輸入處理人姓名完成結案。";
-              show($("resolveForm"));
-              $("tid").value = ticketId;
-              var nameInput = document.querySelector('input[name="handler_name"]');
-              nameInput.value = displayName || "";
+            } <script>
+(async () => {
+  const LIFF_ID  = "2007987243-36ny9WQ7";
+  const API_BASE = "https://wooow.zeabur.app/webhook/school";
 
-              var serverStatus = "OPEN";
-              // 先預覽
-              post({ kind:"resolve", op:"preview", ticket_id:ticketId, user_id:userId })
-                .then(function(r){ return r.json().catch(function(){ return {}; }); })
-                .then(function(j1){
-                  var t = j1.ticket || j1.row || j1.data || j1 || {};
-                  serverStatus = String(t["狀態"] || "").toUpperCase() || "OPEN";
-                  renderPreview($("previewBox"), t);
-                  if (serverStatus !== "OPEN") lockResolveForm("已結案");
-                })
-                .catch(function(){
-                  $("resolveMsg").className = "msg err";
-                  $("resolveMsg").innerText = "讀取工單內容失敗（仍可直接結案）。";
-                });
+  const $    = id => document.getElementById(id);
+  const show = el => el.style.display = "block";
+  const qs   = (o)=> new URLSearchParams(o).toString();
+  const post = (bodyObj)=> fetch(API_BASE, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: qs(bodyObj),
+  });
+  const safe = (v, d='—') => (v === undefined || v === null || String(v).trim() === "") ? d : String(v);
 
-              $("resolveForm").addEventListener("submit", function(e){
-                e.preventDefault();
-                if (serverStatus !== "OPEN") {
-                  $("resolveMsg").className = "msg err";
-                  $("resolveMsg").innerText = "此工單已結案，無法再次提交。";
-                  lockResolveForm("已結案");
-                  return;
-                }
+  function renderPreview(target, t){
+    target.innerHTML = "";
+    const rows = [
+      ["建立日期", t["建立日期"]],
+      ["建立時間", t["建立時間"]],
+      ["身分別",   t["身分別"]],
+      ["學生姓名", t["學生姓名"]],
+      ["學號",     t["學號"]],
+      ["問題類別", t["問題類別"]],
+      ["問題說明", t["問題說明"]],
+      ["聯絡電話", t["聯絡電話"]],
+      ["方便聯絡", t["方便聯絡時間"] || t["方便連絡時間"]],
+      ["狀態",     t["狀態"]],
+    ];
+    rows.forEach(([k,v])=>{
+      const r = document.createElement("div");
+      r.className = "pv-row";
+      r.innerHTML = `<div class="pv-k">${k}</div><div class="pv-v">${safe(v)}</div>`;
+      target.appendChild(r);
+    });
+  }
 
-                var fd = new FormData(e.currentTarget);
-                var payload = {};
-                fd.forEach(function(v,k){ payload[k]=v; });
-                payload.ticket_id = ticketId;
-                payload.token = token;
-                payload.handler_user_id = userId;
-                payload.kind = "resolve";
-                payload.op = "commit";
+  function normalizeTicket(j){
+    if (!j) return {};
+    if (j.ticket) return j.ticket;
+    if (j.row)    return j.row;
+    if (j.data)   return j.data;
+    if (Array.isArray(j) && j.length) return j[0]; // 後端回陣列時
+    return j; // 直接平鋪
+  }
 
-                if (!confirm("確認將工單 " + ticketId + " 標記為已處理？\n處理人：" + (payload.handler_name || displayName || "-"))) {
-                  return;
-                }
+  function lockResolveUI(msg){
+    const btn = $("resolveBtn");
+    const inp = document.querySelector('input[name="handler_name"]');
+    btn.disabled = true;
+    inp.disabled = true;
+    $("resolveMsg").className = "msg ok";
+    $("resolveMsg").innerText = msg || "此工單已結案。";
+  }
 
-                var btn = $("resolveBtn");
-                btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
 
-                post(payload)
-                  .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json().catch(function(){return {};}); })
-                  .then(function(j2){
-                    $("resolveMsg").className = "msg ok";
-                    $("resolveMsg").innerText = j2.message || "已結案，感謝！";
-                    serverStatus = "CLOSED";
-                    lockResolveForm("已結案");
-                  })
-                  .catch(function(err){
-                    $("resolveMsg").className = "msg err";
-                    $("resolveMsg").innerText = "送出失敗：" + (err && err.message || err);
-                    btn.disabled = false;
-                  });
-              });
-            }
-          });
-        })
-        .catch(function(err){
-          var m = document.createElement("div");
-          m.className = "msg err";
-          m.innerText = "LIFF 初始化失敗：" + (err && err.message || err);
-          document.querySelector(".card").appendChild(m);
+    const u = new URL(location.href);
+    const action   = u.searchParams.get("action") || "ticket";
+    const ticketId = u.searchParams.get("ticketId") || "";
+    const token    = u.searchParams.get("token") || "";
+
+    const profile = await liff.getProfile().catch(()=>null);
+    const context = liff.getContext?.() || {};
+    const userId = profile?.userId || context.userId || "";
+    const displayName = profile?.displayName || "";
+
+    // ======== resolve（查看／結案）========
+    if (action === "resolve") {
+      $("title").textContent = "查看／處理工單";
+      $("subtitle").textContent = "請確認工單內容，並輸入處理人姓名完成結案。";
+      show($("resolveForm"));
+      $("tid").value = ticketId;
+      document.querySelector('input[name="handler_name"]').value = displayName || "";
+
+      // ① 抓預覽
+      try {
+        const r1 = await post({
+          // 這三個都帶，Router 好判斷
+          kind: "resolve",
+          act:  "resolve",
+          op:   "preview",
+          ticket_id: ticketId,
+          user_id:   userId,
         });
-    }
+        const j1 = await r1.json().catch(()=> ({}));
+        const t  = normalizeTicket(j1);
+        renderPreview($("previewBox"), t || {});
 
-    // 等 DOM 準備好再執行（避免 script 還沒載好就呼叫）
-    if (document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', initApp);
-    } else {
-      initApp();
+        // 狀態不是 OPEN 就直接鎖住
+        if ((t && String(t["狀態"]).toUpperCase() !== "OPEN")) {
+          lockResolveUI("此工單已結案。");
+        }
+      } catch (err) {
+        $("resolveMsg").className = "msg err";
+        $("resolveMsg").innerText = "讀取工單內容失敗（仍可直接結案）。";
+      }
+
+      // ② 送出結案
+      $("resolveForm").addEventListener("submit", async (e)=>{
+        e.preventDefault();
+
+        const payload = Object.fromEntries(new FormData(e.currentTarget));
+        payload.ticket_id       = ticketId;
+        payload.token           = token;
+        payload.handler_user_id = userId;
+        payload.kind = "resolve";
+        payload.act  = "resolve";
+        payload.op   = "commit";
+
+        if (!confirm(`確認將工單 ${ticketId} 標記為已處理？\n處理人：${payload.handler_name || displayName || "-"}`)) {
+          return;
+        }
+
+        const btn = $("resolveBtn");
+        btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
+
+        try {
+          const r2 = await post(payload);
+          const j2 = await r2.json().catch(()=>({}));
+
+          // 若後端有回更新後的 ticket，就重畫 + 鎖住
+          const t2 = normalizeTicket(j2);
+          if (t2 && Object.keys(t2).length) renderPreview($("previewBox"), t2);
+
+          $("resolveMsg").className = "msg ok";
+          $("resolveMsg").innerText = j2.message || "已結案，感謝！";
+          lockResolveUI(); // 鎖住
+        } catch (err) {
+          $("resolveMsg").className = "msg err";
+          $("resolveMsg").innerText = "送出失敗：" + (err?.message || err);
+          $("resolveBtn").disabled = false;
+        }
+      });
     }
-  })();
-  </script>
+  } catch (err) {
+    const m = document.createElement("div");
+    m.className = "msg err";
+    m.innerText = "LIFF 初始化失敗：" + (err?.message || err);
+    document.querySelector(".card").appendChild(m);
+  }
+})();
+</script>
+
 </body>
 </html>
