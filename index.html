@@ -6,35 +6,23 @@
   <title>問題工單</title>
   <script src="https://static.line-scdn.net/liff/edge/versions/2.23.1/sdk.js"></script>
   <style>
-    :root{
-      --primary:#2ecc71; --primary-dark:#27ae60;
-      --bg:#f6f8fb; --text:#1f2937; --muted:#6b7280; --ring:#d1fae5; --card:#ffffff;
-    }
+    :root{--primary:#2ecc71;--primary-dark:#27ae60;--bg:#f6f8fb;--text:#1f2937;--muted:#6b7280;--ring:#d1fae5;--card:#ffffff}
     html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",sans-serif}
     .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
     .card{width:100%;max-width:640px;background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.06);padding:22px 20px}
     .header{display:flex;gap:12px;align-items:center;margin-bottom:8px}
     .logo{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#fff;border:1px solid #e5e7eb}
-    h1{font-size:22px;margin:0}
-    .sub{color:var(--muted);font-size:13px;margin:6px 0 16px}
-    .row{display:flex;gap:12px}
-    .row>.field{flex:1}
-    .field{margin-bottom:14px}
-    .label{display:block;font-size:13px;color:#374151;margin-bottom:6px}
-    .req{color:#ef4444;margin-left:4px}
-    input[type="text"],input[type="tel"],select,textarea{
-      width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;outline:none;background:#fff;transition:.15s border,.15s box-shadow
-    }
+    h1{font-size:22px;margin:0}.sub{color:var(--muted);font-size:13px;margin:6px 0 16px}
+    .row{display:flex;gap:12px}.row>.field{flex:1}.field{margin-bottom:14px}
+    .label{display:block;font-size:13px;color:#374151;margin-bottom:6px}.req{color:#ef4444;margin-left:4px}
+    input[type="text"],input[type="tel"],select,textarea{width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;outline:none;background:#fff;transition:.15s border,.15s box-shadow}
     textarea{min-height:140px;resize:vertical}
     input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 4px var(--ring)}
     .hint{font-size:12px;color:var(--muted);margin-top:6px}
     button{width:100%;border:0;border-radius:10px;padding:12px 14px;font-size:16px;color:#fff;background:var(--primary);cursor:pointer;transition:.15s background,.15s transform}
-    button:hover{background:var(--primary-dark)}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .msg{margin-top:12px;font-size:14px}
-    .ok{color:#065f46}
-    .err{color:#b91c1c}
+    button:hover{background:var(--primary-dark)}button:disabled{opacity:.6;cursor:not-allowed}
+    .msg{margin-top:12px;font-size:14px}.ok{color:#065f46}.err{color:#b91c1c}
   </style>
 </head>
 <body>
@@ -57,7 +45,6 @@
           </div>
           <div class="field">
             <label class="label">學號</label>
-            <!-- placeholder 留白 -->
             <input name="student_no" type="text" placeholder="">
           </div>
         </div>
@@ -67,20 +54,14 @@
             <label class="label">身分別<span class="req">*</span></label>
             <select name="identity" required>
               <option value="" disabled selected>請選擇</option>
-              <option>未入學</option>
-              <option>在校生</option>
-              <option>已畢業</option>
+              <option>未入學</option><option>在校生</option><option>已畢業</option>
             </select>
           </div>
           <div class="field">
             <label class="label">問題類別<span class="req">*</span></label>
             <select name="category" required>
               <option value="" disabled selected>請選擇</option>
-              <option>教務處</option>
-              <option>學務處</option>
-              <option>總務處</option>
-              <option>輔導室</option>
-              <option>其他</option>
+              <option>教務處</option><option>學務處</option><option>總務處</option><option>輔導室</option><option>其他</option>
             </select>
           </div>
         </div>
@@ -128,13 +109,15 @@
 
   <script>
   (async () => {
-    const LIFF_ID  = "2007987243-36ny9WQ7";          // ← 換成你的
-    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 你的 n8n webhook base
+    const LIFF_ID  = "2007987243-36ny9WQ7";                    // ← 換成你的
+    // ✅ 建議用 Production：/webhook（而不是 /webhook/school）
+    //   你的 n8n 需要有兩條端點：POST /webhook/ticket、POST /webhook/resolve
+    const API_BASE = "https://wooow.zeabur.app/webhook";
 
     const $ = id => document.getElementById(id);
     const show = el => el.style.display = "block";
 
-    // 生成 00~23 的小時下拉
+    // 生成 00~23 的小時下拉（整點）
     function buildHourSelect(sel, placeholder){
       sel.innerHTML = "";
       const opt0 = document.createElement("option");
@@ -146,9 +129,7 @@
         o.textContent = String(h).padStart(2,"0");
         sel.appendChild(o);
       }
-      sel.style.flex = "1";
-      sel.style.height = "40px";
-      sel.style.borderRadius = "10px";
+      sel.style.flex = "1"; sel.style.height = "40px"; sel.style.borderRadius = "10px";
     }
 
     try {
@@ -158,7 +139,7 @@
       const u = new URL(location.href);
       const action   = u.searchParams.get("action") || "ticket";
       const ticketId = u.searchParams.get("ticketId") || "";
-      const token    = u.searchParams.get("token") || "";
+      const token    = u.searchParams.get("token") || ""; // 你後端不需用到可忽略
 
       const profile = await liff.getProfile().catch(()=>null);
       const context = liff.getContext?.() || {};
@@ -188,24 +169,23 @@
             if (Number(he) <= Number(hs)) {
               $("msg").className = "msg err";
               $("msg").innerText = "結束時間需晚於開始時間。";
-              btn.disabled = false;
-              return;
+              btn.disabled = false; return;
             }
             payload.contact_time = `${hs}:00-${he}:00`;
           }
           delete payload.hour_start; delete payload.hour_end;
 
-          // 後端相容：is_student 取自「身分別」
+          // 是否在校生：由身分別判斷
           payload.is_student = (payload.identity === "在校生");
-
           payload.user_id = userId;
           payload.user_name = displayName;
 
           try {
+            // ⚡ 用 x-www-form-urlencoded 避免 CORS 預檢（最穩）
             const r = await fetch(`${API_BASE}/ticket`, {
               method:"POST",
-              headers:{ "Content-Type":"application/json" },
-              body: JSON.stringify(payload)
+              headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+              body: new URLSearchParams(payload).toString()
             });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const j = await r.json().catch(()=>({}));
@@ -222,21 +202,30 @@
       } else if (action === "resolve") {
         show($("resolveForm"));
         $("tid").value = ticketId;
+        // 預填處理人為 LINE 顯示名
+        document.querySelector('input[name="handler_name"]').value = displayName || "";
+
         $("resolveForm").addEventListener("submit", async (e)=>{
           e.preventDefault();
-          const btn = $("resolveBtn");
-          btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
 
           const payload = Object.fromEntries(new FormData(e.currentTarget));
           payload.ticket_id = ticketId;
-          payload.token = token;
+          payload.token = token;                 // 後端不驗證可忽略
           payload.handler_user_id = userId;
+
+          // ✅ 只有結案做防誤觸確認
+          if (!confirm(`確認將工單 ${ticketId} 標記為已處理？\n處理人：${payload.handler_name || displayName || "-"}`)) {
+            return; // 取消就不送出
+          }
+
+          const btn = $("resolveBtn");
+          btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
 
           try {
             const r = await fetch(`${API_BASE}/resolve`, {
               method:"POST",
-              headers:{ "Content-Type":"application/json" },
-              body: JSON.stringify(payload)
+              headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+              body: new URLSearchParams(payload).toString()
             });
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const j = await r.json().catch(()=>({}));
