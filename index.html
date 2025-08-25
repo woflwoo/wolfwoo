@@ -23,6 +23,12 @@
     button{width:100%;border:0;border-radius:10px;padding:12px 14px;font-size:16px;color:#fff;background:var(--primary);cursor:pointer;transition:.15s background,.15s transform}
     button:hover{background:var(--primary-dark)}button:disabled{opacity:.6;cursor:not-allowed}
     .msg{margin-top:12px;font-size:14px}.ok{color:#065f46}.err{color:#b91c1c}
+    /* 預覽樣式 */
+    .preview{background:#fafafa;border:1px solid #eef2f7;border-radius:12px;padding:12px;margin:8px 0}
+    .pv-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #e5e7eb}
+    .pv-row:last-child{border-bottom:0}
+    .pv-k{width:92px;color:#6b7280;font-size:13px;flex-shrink:0}
+    .pv-v{flex:1;word-break:break-word}
   </style>
 </head>
 <body>
@@ -32,7 +38,7 @@
         <img class="logo" src="https://www.tshcmc.edu.vn/var/file/0/1000/msys_1000_5422488_71208.png" alt="logo"/>
         <div>
           <h1 id="title">問題工單</h1>
-          <div class="sub">請填寫以下資訊，我們將盡快與您聯絡。</div>
+          <div class="sub" id="subtitle">請填寫以下資訊，我們將盡快與您聯絡。</div>
         </div>
       </div>
 
@@ -78,7 +84,7 @@
             <input name="phone" type="tel" inputmode="tel" placeholder="例如 0912-345-678" required>
           </div>
           <div class="field">
-            <label class="label">方便連絡時間（24 小時制／整點）</label>
+            <label class="label">方便聯絡時間（24 小時制／整點）</label>
             <div class="row">
               <select name="hour_start"></select>
               <select name="hour_end"></select>
@@ -91,8 +97,11 @@
         <div id="msg" class="msg"></div>
       </form>
 
-      <!-- 結案表單 -->
+      <!-- 查看/結案 -->
       <form id="resolveForm" style="display:none">
+        <div class="preview" id="previewBox">
+          <!-- 動態塞預覽 -->
+        </div>
         <div class="field">
           <label class="label">工單編號</label>
           <input id="tid" type="text" readonly>
@@ -109,13 +118,13 @@
 
   <script>
   (async () => {
-    const LIFF_ID  = "2007987243-36ny9WQ7"; // ← 換成你的
-    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ✅ 單一 webhook
+    const LIFF_ID  = "2007987243-36ny9WQ7";                 // ← 換成你的
+    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 單一 webhook
 
     const $ = id => document.getElementById(id);
     const show = el => el.style.display = "block";
 
-    // 00~23 小時下拉（整點）
+    // 時間下拉（00~23）
     function buildHourSelect(sel, placeholder){
       sel.innerHTML = "";
       const opt0 = document.createElement("option");
@@ -128,6 +137,37 @@
         sel.appendChild(o);
       }
       sel.style.flex = "1"; sel.style.height = "40px"; sel.style.borderRadius = "10px";
+    }
+
+    // 小工具
+    const qs = (o)=> new URLSearchParams(o).toString();
+    const post = (bodyObj)=> fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+      body: qs(bodyObj),
+    });
+
+    const safe = (v, d='—') => (v === undefined || v === null || String(v).trim() === "") ? d : String(v);
+
+    function renderPreview(target, t){
+      target.innerHTML = "";
+      const rows = [
+        ["建立日期", t["建立日期"]],
+        ["建立時間", t["建立時間"]],
+        ["身分別",   t["身分別"]],
+        ["學生姓名", t["學生姓名"]],
+        ["學號",     t["學號"]],
+        ["問題類別", t["問題類別"]],
+        ["問題說明", t["問題說明"]],
+        ["聯絡電話", t["聯絡電話"]],
+        ["方便聯絡", t["方便聯絡時間"] || t["方便連絡時間"]],
+      ];
+      rows.forEach(([k,v])=>{
+        const r = document.createElement("div");
+        r.className = "pv-row";
+        r.innerHTML = `<div class="pv-k">${k}</div><div class="pv-v">${safe(v)}</div>`;
+        target.appendChild(r);
+      });
     }
 
     try {
@@ -145,6 +185,8 @@
       const displayName = profile?.displayName || "";
 
       if (action === "ticket") {
+        $("title").textContent = "問題工單";
+        $("subtitle").textContent = "請填寫以下資訊，我們將盡快與您聯絡。";
         show($("ticketForm"));
 
         // 時間選單
@@ -161,7 +203,7 @@
           const fd = new FormData(e.currentTarget);
           const payload = Object.fromEntries(fd);
 
-          // contact_time：HH:00-HH:00（若兩者都有值）
+          // contact_time：HH:00-HH:00
           const hs = payload.hour_start, he = payload.hour_end;
           if (hs && he) {
             if (Number(he) <= Number(hs)) {
@@ -173,19 +215,13 @@
           }
           delete payload.hour_start; delete payload.hour_end;
 
-          // 身分別 → 是否在校生
           payload.is_student = (payload.identity === "在校生");
           payload.user_id = userId;
           payload.user_name = displayName;
-          payload.kind = "ticket";               // ✅ 分流關鍵
+          payload.kind = "ticket"; // 分流關鍵
 
           try {
-            // 用 x-www-form-urlencoded 避免預檢
-            const r = await fetch(API_BASE, {
-              method:"POST",
-              headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
-              body: new URLSearchParams(payload).toString()
-            });
+            const r = await post(payload);
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const j = await r.json().catch(()=>({}));
             $("msg").className = "msg ok";
@@ -199,20 +235,41 @@
         });
 
       } else if (action === "resolve") {
+        $("title").textContent = "查看／處理工單";
+        $("subtitle").textContent = "請確認工單內容，並輸入處理人姓名完成結案。";
         show($("resolveForm"));
         $("tid").value = ticketId;
         document.querySelector('input[name="handler_name"]').value = displayName || "";
 
+        // ① 先取「工單預覽」
+        try {
+          const r1 = await post({
+            kind: "resolve",          // Router 會導到 liff_resolve
+            op: "preview",            // 後端用這個決定「查詢」而非「更新」
+            ticket_id: ticketId,
+            user_id: userId
+          });
+          // 不強制要求 200 才解析，容錯
+          const j1 = await r1.json().catch(()=> ({}));
+          // 可能的資料鍵：ticket / row / data
+          const t = j1.ticket || j1.row || j1.data || j1;
+          renderPreview($("previewBox"), t || {});
+        } catch (err) {
+          $("resolveMsg").className = "msg err";
+          $("resolveMsg").innerText = "讀取工單內容失敗（仍可直接結案）。";
+        }
+
+        // ② 送出結案
         $("resolveForm").addEventListener("submit", async (e)=>{
           e.preventDefault();
 
           const payload = Object.fromEntries(new FormData(e.currentTarget));
           payload.ticket_id = ticketId;
-          payload.token = token;            // 後端不驗證可忽略
+          payload.token = token;
           payload.handler_user_id = userId;
-          payload.kind = "resolve";         // ✅ 分流關鍵
+          payload.kind = "resolve";
+          payload.op = "commit";     // 後端據此執行「更新」
 
-          // 只有結案做防誤觸確認
           if (!confirm(`確認將工單 ${ticketId} 標記為已處理？\n處理人：${payload.handler_name || displayName || "-"}`)) {
             return;
           }
@@ -221,15 +278,11 @@
           btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
 
           try {
-            const r = await fetch(API_BASE, {
-              method:"POST",
-              headers:{ "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
-              body: new URLSearchParams(payload).toString()
-            });
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            const j = await r.json().catch(()=>({}));
+            const r2 = await post(payload);
+            if (!r2.ok) throw new Error(`HTTP ${r2.status}`);
+            const j2 = await r2.json().catch(()=>({}));
             $("resolveMsg").className = "msg ok";
-            $("resolveMsg").innerText = j.message || "已結案，感謝！";
+            $("resolveMsg").innerText = j2.message || "已結案，感謝！";
             setTimeout(()=> liff.closeWindow?.(), 900);
           } catch (err) {
             $("resolveMsg").className = "msg err";
