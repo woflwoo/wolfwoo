@@ -1,80 +1,231 @@
-<!doctype html><html lang="zh-Hant"><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>問題工單</title>
-<script src="https://static.line-scdn.net/liff/edge/versions/2.23.1/sdk.js"></script>
-<body style="font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;padding:16px">
-<h2 id="title">問題工單</h2>
-<form id="ticketForm" style="display:none">
-  <label>在校生？
-    <select name="is_student"><option value="是">是</option><option value="否">否</option></select>
-  </label><br/><br/>
-  <label>問題類別
-    <input name="category" placeholder="教務處 / 學務處 / 總務處 / 輔導室" required/>
-  </label><br/><br/>
-  <label>問題說明
-    <textarea name="description" required></textarea>
-  </label><br/><br/>
-  <label>電話 <input name="phone" required/></label><br/><br/>
-  <label>方便連絡時間 <input name="contact_time" placeholder="例如 14:00-17:00"/></label><br/><br/>
-  <button type="submit">送出工單</button>
-</form>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>問題工單</title>
+  <script src="https://static.line-scdn.net/liff/edge/versions/2.23.1/sdk.js"></script>
+  <style>
+    :root{
+      --primary:#2ecc71;       /* 主色：亮綠 */
+      --primary-dark:#27ae60;
+      --bg:#f6f8fb;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --ring:#d1fae5;
+      --card:#ffffff;
+    }
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
+    }
+    .wrap{
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .card{
+      width:100%; max-width:560px; background:var(--card);
+      border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.06);
+      padding:24px 20px;
+    }
+    h1{font-size:22px; margin:0 0 6px}
+    .sub{color:var(--muted); font-size:13px; margin-bottom:18px}
+    .row{display:flex; gap:12px}
+    .row > .field{flex:1}
+    .field{margin-bottom:14px}
+    .label{display:block; font-size:13px; color:#374151; margin-bottom:6px}
+    .req{color:#ef4444; margin-left:4px}
+    input[type="text"], input[type="tel"], select, textarea{
+      width:100%; box-sizing:border-box; font-size:15px;
+      padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; outline:none; background:#fff;
+      transition:.15s border, .15s box-shadow;
+    }
+    textarea{min-height:140px; resize:vertical}
+    input:focus, select:focus, textarea:focus{
+      border-color:var(--primary); box-shadow:0 0 0 4px var(--ring);
+    }
+    .hint{font-size:12px; color:var(--muted); margin-top:6px}
+    button{
+      width:100%; border:0; border-radius:10px; padding:12px 14px; font-size:16px; color:#fff;
+      background:var(--primary); cursor:pointer; transition:.15s background,.15s transform;
+    }
+    button:hover{background:var(--primary-dark)}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .muted-btn{
+      background:#e5e7eb; color:#111827;
+    }
+    .msg{margin-top:12px; font-size:14px}
+    .ok{color:#065f46}
+    .err{color:#b91c1c}
+    /* resolve 區塊與 ticket 共用版型 */
+    .section-title{font-weight:600; margin:12px 0 6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1 id="title">問題工單</h1>
+      <div class="sub">請填寫以下資訊，我們將盡快與您聯絡。</div>
 
-<form id="resolveForm" style="display:none">
-  <p>票號：<span id="tid"></span></p>
-  <label>處理人姓名 <input name="handler_name" required/></label><br/><br/>
-  <button type="submit">確認結案</button>
-</form>
+      <!-- 送單表單 -->
+      <form id="ticketForm" style="display:none">
+        <div class="row">
+          <div class="field">
+            <label class="label">學生姓名</label>
+            <input name="student_name" type="text" placeholder="王小明">
+          </div>
+          <div class="field">
+            <label class="label">學號</label>
+            <input name="student_no" type="text" placeholder="未入學／已畢業 也可填">
+          </div>
+        </div>
 
-<p id="msg"></p>
+        <div class="field">
+          <label class="label">問題類別<span class="req">*</span></label>
+          <select name="category" required>
+            <option value="" disabled selected>請選擇</option>
+            <option>教務處</option>
+            <option>學務處</option>
+            <option>總務處</option>
+            <option>輔導室</option>
+            <option>其他</option>
+          </select>
+        </div>
 
-<script>
-(async () => {
-  const LIFF_ID = "2007987243-36ny9WQ7";  // ← 改成你的
-  const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 你的 n8n webhook base
-  await liff.init({ liffId: LIFF_ID });
-  if (!liff.isLoggedIn()) liff.login();
+        <div class="field">
+          <label class="label">問題說明<span class="req">*</span></label>
+          <textarea name="description" placeholder="請簡要描述您的問題…" required></textarea>
+          <div class="hint">可附上關鍵資訊（年級／班級／時間點等）。</div>
+        </div>
 
-  const u = new URL(location.href);
-  const action = u.searchParams.get("action") || "ticket";
-  const ticketId = u.searchParams.get("ticketId") || "";
-  const token = u.searchParams.get("token") || "";
+        <div class="row">
+          <div class="field">
+            <label class="label">聯絡電話<span class="req">*</span></label>
+            <input name="phone" type="tel" inputmode="tel" placeholder="例如 0912-345-678" required>
+          </div>
+          <div class="field">
+            <label class="label">方便連絡時間</label>
+            <input name="contact_time" type="text" placeholder="例如 14:00-17:00">
+          </div>
+        </div>
 
-  const profile = await liff.getProfile().catch(()=>null);
-  const context = liff.getContext?.() || {};
-  const userId = profile?.userId || context.userId || "";
-  const displayName = profile?.displayName || "";
+        <button id="submitBtn" type="submit">送出工單</button>
+        <div id="msg" class="msg"></div>
+      </form>
 
-  const msg = (t)=>document.getElementById('msg').innerText=t;
+      <!-- 結案表單 -->
+      <form id="resolveForm" style="display:none">
+        <div class="section-title">工單資訊</div>
+        <div class="field">
+          <input id="tid" type="text" readonly>
+        </div>
+        <div class="field">
+          <label class="label">處理人姓名<span class="req">*</span></label>
+          <input name="handler_name" type="text" placeholder="請輸入您的姓名" required>
+        </div>
+        <button id="resolveBtn" type="submit">確認結案</button>
+        <div id="resolveMsg" class="msg"></div>
+      </form>
+    </div>
+  </div>
 
-  if (action === "ticket") {
-    document.getElementById('title').innerText = "問題工單";
-    ticketForm.style.display = "block";
-    ticketForm.addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      const payload = Object.fromEntries(new FormData(ticketForm));
-      payload.is_student = payload.is_student === "是";
-      payload.user_id = userId;
-      payload.user_name = displayName;
-      const r = await fetch(`${API_BASE}/ticket`, {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json().catch(()=>({}));
-      msg(j.message || "已送出，謝謝！");
-      setTimeout(()=> liff.closeWindow?.(), 800);
-    });
-  } else if (action === "resolve") {
-    document.getElementById('title').innerText = "工單結案";
-    resolveForm.style.display = "block";
-    document.getElementById('tid').innerText = ticketId;
-    resolveForm.addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      const payload = Object.fromEntries(new FormData(resolveForm));
-      payload.ticket_id = ticketId; payload.token = token;
-      payload.handler_user_id = userId;
-      const r = await fetch(`${API_BASE}/resolve`, {method:"POST", headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-      const j = await r.json().catch(()=>({}));
-      msg(j.message || "已結案，感謝！");
-      setTimeout(()=> liff.closeWindow?.(), 800);
-    });
-  }
-})();
-</script>
-</body></html>
+  <script>
+  (async () => {
+    const LIFF_ID  = "2007987243-36ny9WQ7";                 // ← 換成你的
+    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 換成你的 n8n webhook base
+
+    const $ = (id)=>document.getElementById(id);
+    const show = (el)=> el.style.display = "block";
+    const hide = (el)=> el.style.display = "none";
+
+    try {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) { liff.login(); return; }
+
+      const u = new URL(location.href);
+      const action   = u.searchParams.get("action") || "ticket";
+      const ticketId = u.searchParams.get("ticketId") || "";
+      const token    = u.searchParams.get("token") || "";
+
+      const profile = await liff.getProfile().catch(()=>null);
+      const context = liff.getContext?.() || {};
+      const userId = profile?.userId || context.userId || "";
+      const displayName = profile?.displayName || "";
+
+      if (action === "ticket") {
+        $("title").innerText = "問題工單";
+        show($("ticketForm"));
+
+        $("ticketForm").addEventListener("submit", async (e)=>{
+          e.preventDefault();
+          const btn = $("submitBtn");
+          btn.disabled = true; $("msg").className = "msg"; $("msg").innerText = "送出中…";
+
+          const payload = Object.fromEntries(new FormData(e.currentTarget));
+
+          // 後端相容：從學號推斷是否在校生
+          const sno = (payload.student_no || "").trim();
+          const nonStu = /未入學|已畢業/i.test(sno);
+          payload.is_student = sno && !nonStu ? true : false;
+
+          payload.user_id = userId;
+          payload.user_name = displayName;
+
+          try {
+            const r = await fetch(`${API_BASE}/ticket`, {
+              method:"POST",
+              headers:{ "Content-Type":"application/json" },
+              body: JSON.stringify(payload)
+            });
+            const j = await r.json().catch(()=>({}));
+            $("msg").className = "msg ok";
+            $("msg").innerText = j.message || "已送出，謝謝！";
+            setTimeout(()=> liff.closeWindow?.(), 900);
+          } catch (err) {
+            $("msg").className = "msg err";
+            $("msg").innerText = "送出失敗：" + (err?.message || err);
+            btn.disabled = false;
+          }
+        });
+
+      } else if (action === "resolve") {
+        $("title").innerText = "工單結案";
+        show($("resolveForm"));
+        $("tid").value = ticketId;
+
+        $("resolveForm").addEventListener("submit", async (e)=>{
+          e.preventDefault();
+          const btn = $("resolveBtn");
+          btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
+          const payload = Object.fromEntries(new FormData(e.currentTarget));
+          payload.ticket_id = ticketId;
+          payload.token = token;
+          payload.handler_user_id = userId;
+
+          try {
+            const r = await fetch(`${API_BASE}/resolve`, {
+              method:"POST",
+              headers:{ "Content-Type":"application/json" },
+              body: JSON.stringify(payload)
+            });
+            const j = await r.json().catch(()=>({}));
+            $("resolveMsg").className = "msg ok";
+            $("resolveMsg").innerText = j.message || "已結案，感謝！";
+            setTimeout(()=> liff.closeWindow?.(), 900);
+          } catch (err) {
+            $("resolveMsg").className = "msg err";
+            $("resolveMsg").innerText = "送出失敗：" + (err?.message || err);
+            btn.disabled = false;
+          }
+        });
+      }
+    } catch (err) {
+      const m = document.createElement("div");
+      m.className = "msg err";
+      m.innerText = "LIFF 初始化失敗：" + (err?.message || err);
+      document.querySelector(".card").appendChild(m);
+    }
+  })();
+  </script>
+</body>
+</html>
