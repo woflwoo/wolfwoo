@@ -7,65 +7,46 @@
   <script src="https://static.line-scdn.net/liff/edge/versions/2.23.1/sdk.js"></script>
   <style>
     :root{
-      --primary:#2ecc71;       /* 主色：亮綠 */
-      --primary-dark:#27ae60;
-      --bg:#f6f8fb;
-      --text:#1f2937;
-      --muted:#6b7280;
-      --ring:#d1fae5;
-      --card:#ffffff;
+      --primary:#2ecc71; --primary-dark:#27ae60;
+      --bg:#f6f8fb; --text:#1f2937; --muted:#6b7280; --ring:#d1fae5; --card:#ffffff;
     }
     html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
-    }
-    .wrap{
-      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
-    }
-    .card{
-      width:100%; max-width:560px; background:var(--card);
-      border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.06);
-      padding:24px 20px;
-    }
-    h1{font-size:22px; margin:0 0 6px}
-    .sub{color:var(--muted); font-size:13px; margin-bottom:18px}
-    .row{display:flex; gap:12px}
-    .row > .field{flex:1}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",sans-serif}
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{width:100%;max-width:640px;background:var(--card);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.06);padding:22px 20px}
+    .header{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+    .logo{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#fff;border:1px solid #e5e7eb}
+    h1{font-size:22px;margin:0}
+    .sub{color:var(--muted);font-size:13px;margin:6px 0 16px}
+    .row{display:flex;gap:12px}
+    .row>.field{flex:1}
     .field{margin-bottom:14px}
-    .label{display:block; font-size:13px; color:#374151; margin-bottom:6px}
-    .req{color:#ef4444; margin-left:4px}
-    input[type="text"], input[type="tel"], select, textarea{
-      width:100%; box-sizing:border-box; font-size:15px;
-      padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; outline:none; background:#fff;
-      transition:.15s border, .15s box-shadow;
+    .label{display:block;font-size:13px;color:#374151;margin-bottom:6px}
+    .req{color:#ef4444;margin-left:4px}
+    input[type="text"],input[type="tel"],select,textarea{
+      width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;outline:none;background:#fff;transition:.15s border,.15s box-shadow
     }
-    textarea{min-height:140px; resize:vertical}
-    input:focus, select:focus, textarea:focus{
-      border-color:var(--primary); box-shadow:0 0 0 4px var(--ring);
-    }
-    .hint{font-size:12px; color:var(--muted); margin-top:6px}
-    button{
-      width:100%; border:0; border-radius:10px; padding:12px 14px; font-size:16px; color:#fff;
-      background:var(--primary); cursor:pointer; transition:.15s background,.15s transform;
-    }
+    textarea{min-height:140px;resize:vertical}
+    input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 4px var(--ring)}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    button{width:100%;border:0;border-radius:10px;padding:12px 14px;font-size:16px;color:#fff;background:var(--primary);cursor:pointer;transition:.15s background,.15s transform}
     button:hover{background:var(--primary-dark)}
-    button:disabled{opacity:.6; cursor:not-allowed}
-    .muted-btn{
-      background:#e5e7eb; color:#111827;
-    }
-    .msg{margin-top:12px; font-size:14px}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .msg{margin-top:12px;font-size:14px}
     .ok{color:#065f46}
     .err{color:#b91c1c}
-    /* resolve 區塊與 ticket 共用版型 */
-    .section-title{font-weight:600; margin:12px 0 6px}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
-      <h1 id="title">問題工單</h1>
-      <div class="sub">請填寫以下資訊，我們將盡快與您聯絡。</div>
+      <div class="header">
+        <img class="logo" src="https://www.tshcmc.edu.vn/var/file/0/1000/msys_1000_5422488_71208.png" alt="logo"/>
+        <div>
+          <h1 id="title">問題工單</h1>
+          <div class="sub">請填寫以下資訊，我們將盡快與您聯絡。</div>
+        </div>
+      </div>
 
       <!-- 送單表單 -->
       <form id="ticketForm" style="display:none">
@@ -105,7 +86,11 @@
           </div>
           <div class="field">
             <label class="label">方便連絡時間</label>
-            <input name="contact_time" type="text" placeholder="例如 14:00-17:00">
+            <div class="row">
+              <input name="time_start" type="time" style="flex:1">
+              <input name="time_end"   type="time" style="flex:1">
+            </div>
+            <div class="hint">將自動組成「HH:MM-HH:MM」。</div>
           </div>
         </div>
 
@@ -115,8 +100,8 @@
 
       <!-- 結案表單 -->
       <form id="resolveForm" style="display:none">
-        <div class="section-title">工單資訊</div>
         <div class="field">
+          <label class="label">工單編號</label>
           <input id="tid" type="text" readonly>
         </div>
         <div class="field">
@@ -131,12 +116,11 @@
 
   <script>
   (async () => {
-    const LIFF_ID  = "2007987243-36ny9WQ7";                 // ← 換成你的
-    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 換成你的 n8n webhook base
+    const LIFF_ID  = "2007987243-36ny9WQ7";                    // ← 換成你的
+    const API_BASE = "https://wooow.zeabur.app/webhook";        // ← 你的 n8n webhook base（無 /school）
 
-    const $ = (id)=>document.getElementById(id);
-    const show = (el)=> el.style.display = "block";
-    const hide = (el)=> el.style.display = "none";
+    const $ = id => document.getElementById(id);
+    const show = el => el.style.display = "block";
 
     try {
       await liff.init({ liffId: LIFF_ID });
@@ -153,20 +137,24 @@
       const displayName = profile?.displayName || "";
 
       if (action === "ticket") {
-        $("title").innerText = "問題工單";
         show($("ticketForm"));
-
         $("ticketForm").addEventListener("submit", async (e)=>{
           e.preventDefault();
           const btn = $("submitBtn");
           btn.disabled = true; $("msg").className = "msg"; $("msg").innerText = "送出中…";
 
-          const payload = Object.fromEntries(new FormData(e.currentTarget));
+          const fd = new FormData(e.currentTarget);
+          const payload = Object.fromEntries(fd);
 
-          // 後端相容：從學號推斷是否在校生
+          // 時間組合：HH:MM-HH:MM
+          const t1 = (payload.time_start || "").trim();
+          const t2 = (payload.time_end   || "").trim();
+          payload.contact_time = (t1 && t2) ? `${t1}-${t2}` : (payload.contact_time || "");
+          delete payload.time_start; delete payload.time_end;
+
+          // 後端相容：由學號推斷是否在校生
           const sno = (payload.student_no || "").trim();
-          const nonStu = /未入學|已畢業/i.test(sno);
-          payload.is_student = sno && !nonStu ? true : false;
+          payload.is_student = sno && !/未入學|已畢業/i.test(sno);
 
           payload.user_id = userId;
           payload.user_name = displayName;
@@ -177,6 +165,7 @@
               headers:{ "Content-Type":"application/json" },
               body: JSON.stringify(payload)
             });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const j = await r.json().catch(()=>({}));
             $("msg").className = "msg ok";
             $("msg").innerText = j.message || "已送出，謝謝！";
@@ -189,14 +178,13 @@
         });
 
       } else if (action === "resolve") {
-        $("title").innerText = "工單結案";
         show($("resolveForm"));
         $("tid").value = ticketId;
-
         $("resolveForm").addEventListener("submit", async (e)=>{
           e.preventDefault();
           const btn = $("resolveBtn");
           btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
+
           const payload = Object.fromEntries(new FormData(e.currentTarget));
           payload.ticket_id = ticketId;
           payload.token = token;
@@ -208,6 +196,7 @@
               headers:{ "Content-Type":"application/json" },
               body: JSON.stringify(payload)
             });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
             const j = await r.json().catch(()=>({}));
             $("resolveMsg").className = "msg ok";
             $("resolveMsg").innerText = j.message || "已結案，感謝！";
