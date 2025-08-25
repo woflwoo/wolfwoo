@@ -99,9 +99,7 @@
 
       <!-- 查看/結案 -->
       <form id="resolveForm" style="display:none">
-        <div class="preview" id="previewBox">
-          <!-- 動態塞預覽 -->
-        </div>
+        <div class="preview" id="previewBox"></div>
         <div class="field">
           <label class="label">工單編號</label>
           <input id="tid" type="text" readonly>
@@ -118,7 +116,7 @@
 
   <script>
   (async () => {
-    const LIFF_ID  = "2007987243-36ny9WQ7";                 // ← 換成你的
+    const LIFF_ID  = "2007987243-36ny9WQ7";                  // ← 換成你的
     const API_BASE = "https://wooow.zeabur.app/webhook/school"; // ← 單一 webhook
 
     const $ = id => document.getElementById(id);
@@ -139,14 +137,13 @@
       sel.style.flex = "1"; sel.style.height = "40px"; sel.style.borderRadius = "10px";
     }
 
-    // 小工具
+    // 工具
     const qs = (o)=> new URLSearchParams(o).toString();
     const post = (bodyObj)=> fetch(API_BASE, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
       body: qs(bodyObj),
     });
-
     const safe = (v, d='—') => (v === undefined || v === null || String(v).trim() === "") ? d : String(v);
 
     function renderPreview(target, t){
@@ -242,18 +239,26 @@
         document.querySelector('input[name="handler_name"]').value = displayName || "";
 
         // ① 先取「工單預覽」
+        let locked = false;
         try {
           const r1 = await post({
-            kind: "resolve",          // Router 會導到 liff_resolve
-            op: "preview",            // 後端用這個決定「查詢」而非「更新」
+            kind: "resolve",      // Router → liff_resolve
+            op: "preview",        // n8n If 走預覽
             ticket_id: ticketId,
             user_id: userId
           });
-          // 不強制要求 200 才解析，容錯
           const j1 = await r1.json().catch(()=> ({}));
-          // 可能的資料鍵：ticket / row / data
-          const t = j1.ticket || j1.row || j1.data || j1;
-          renderPreview($("previewBox"), t || {});
+          const t  = j1.ticket || j1.row || j1.data || j1 || {};
+          renderPreview($("previewBox"), t);
+
+          // 允許後端直接回 locked，也容錯狀態欄位判斷
+          locked = !!j1.locked || String(t["狀態"] || "").toUpperCase() !== "OPEN";
+          if (locked) {
+            $("resolveBtn").disabled = true;
+            document.querySelector('input[name="handler_name"]').disabled = true;
+            $("resolveMsg").className = "msg err";
+            $("resolveMsg").innerText = "此工單已結案，無法再送出。";
+          }
         } catch (err) {
           $("resolveMsg").className = "msg err";
           $("resolveMsg").innerText = "讀取工單內容失敗（仍可直接結案）。";
@@ -262,13 +267,14 @@
         // ② 送出結案
         $("resolveForm").addEventListener("submit", async (e)=>{
           e.preventDefault();
+          if (locked) return; // 前端再擋一次
 
           const payload = Object.fromEntries(new FormData(e.currentTarget));
           payload.ticket_id = ticketId;
           payload.token = token;
           payload.handler_user_id = userId;
           payload.kind = "resolve";
-          payload.op = "commit";     // 後端據此執行「更新」
+          payload.op = "commit";   // n8n If 走更新
 
           if (!confirm(`確認將工單 ${ticketId} 標記為已處理？\n處理人：${payload.handler_name || displayName || "-"}`)) {
             return;
