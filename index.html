@@ -15,14 +15,14 @@
     .logo{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#fff;border:1px solid #e5e7eb}
     h1{font-size:22px;margin:0}.sub{color:var(--muted);font-size:13px;margin:6px 0 16px}
 
-    /* ✅ 改為由上到下（垂直） */
+    /* ✅ 欄位由上到下排列 */
     .row{display:flex;flex-direction:column;gap:12px}
     .row>.field{flex:1}
-    /* ✅ 只保留「開始/結束」兩個下拉同一行 */
+    .field{margin-bottom:14px}
+    /* ✅ 只有開始/結束兩個下拉同一行 */
     .field>.row{flex-direction:row}
     .field>.row>*{flex:1}
 
-    .field{margin-bottom:14px}
     .label{display:block;font-size:13px;color:#374151;margin-bottom:6px}.req{color:#ef4444;margin-left:4px}
     input[type="text"],input[type="tel"],select,textarea{width:100%;box-sizing:border-box;font-size:15px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;outline:none;background:#fff;transition:.15s border,.15s box-shadow}
     textarea{min-height:140px;resize:vertical}
@@ -50,7 +50,7 @@
         </div>
       </div>
 
-      <!-- 送單表單 -->
+      <!-- 送單表單：預設隱藏，等 JS 打開 -->
       <form id="ticketForm" style="display:none">
         <div class="row">
           <div class="field">
@@ -97,7 +97,7 @@
               <select name="hour_start"></select>
               <select name="hour_end"></select>
             </div>
-            <!-- ✅ 隱藏這行提示 -->
+            <!-- ✅ 隱藏提示 -->
             <div class="hint" style="display:none">開始選一次、結束選一次；將自動組成「HH:00-HH:00」。</div>
           </div>
         </div>
@@ -123,7 +123,221 @@
     </div>
   </div>
 
-  <!-- 其餘 JS 完全不變：你原本的 <script> 區塊照放 -->
-  <!-- ……（此處保留你原始的 script 內容）…… -->
+  <script>
+  // 防整頁白：若有 JS 例外，顯示錯誤橫幅
+  window.addEventListener('error', (e)=>{
+    const b = document.createElement('div');
+    b.className = 'errbar';
+    b.textContent = 'JS 錯誤：' + (e.message || e.type);
+    document.body.appendChild(b);
+  });
+
+  (async () => {
+    const LIFF_ID  = "2007987243-36ny9WQ7";                 // 你的 LIFF ID
+    const API_BASE = "https://wooow.zeabur.app/webhook/school"; // Webhook
+
+    const $ = (id)=> document.getElementById(id);
+    const show = (el)=> el.style.display = "block";
+    const qs   = (o)=> new URLSearchParams(o).toString();
+    const post = (bodyObj)=> fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" },
+      body: qs(bodyObj)
+    });
+    const safe = (v, d='—') => (v===undefined || v===null || String(v).trim()==="") ? d : String(v);
+
+    function buildHourSelect(sel, placeholder){
+      sel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = ""; opt0.textContent = placeholder || "請選擇"; opt0.disabled = true; opt0.selected = true;
+      sel.appendChild(opt0);
+      for(let h=0; h<24; h++){
+        const o = document.createElement("option");
+        const hh = String(h).padStart(2,'0');
+        o.value = hh; o.textContent = hh;
+        sel.appendChild(o);
+      }
+      sel.style.flex = "1"; sel.style.height = "40px"; sel.style.borderRadius = "10px";
+    }
+
+    function renderPreview(target, t){
+      target.innerHTML = "";
+      const rows = [
+        ["建立日期", t["建立日期"]],
+        ["建立時間", t["建立時間"]],
+        ["身分別",   t["身分別"]],
+        ["學生姓名", t["學生姓名"]],
+        ["學號",     t["學號"]],
+        ["問題類別", t["問題類別"]],
+        ["問題說明", t["問題說明"]],
+        ["聯絡電話", t["聯絡電話"]],
+        ["方便聯絡", t["方便聯絡時間"] || t["方便連絡時間"]],
+        ["狀態",     t["狀態"]],
+      ];
+      rows.forEach(([k,v])=>{
+        const r = document.createElement("div");
+        r.className = "pv-row";
+        r.innerHTML = `<div class="pv-k">${k}</div><div class="pv-v">${safe(v)}</div>`;
+        target.appendChild(r);
+      });
+    }
+
+    function normalizeTicket(j){
+      try {
+        if (!j) return {};
+        if (j.ticket) return j.ticket;
+        if (j.row)    return j.row;
+        if (j.data)   return j.data;
+        if (Array.isArray(j) && j.length) return j[0];
+        return j;
+      } catch { return {}; }
+    }
+
+    function lockResolveUI(msg){
+      const btn = $("resolveBtn");
+      const inp = document.querySelector('input[name="handler_name"]');
+      btn.disabled = true;
+      inp.disabled = true;
+      $("resolveMsg").className = "msg ok";
+      $("resolveMsg").innerText = msg || "此工單已結案。";
+      $("subtitle").textContent = "此工單已結案，無法再次提交。";
+    }
+
+    // 等待 LIFF SDK 可用
+    await new Promise(resolve=>{
+      const t = setInterval(()=>{ if (window.liff){ clearInterval(t); resolve(); } }, 20);
+    });
+
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()){ liff.login(); return; }
+
+    const u = new URL(location.href);
+    const action   = u.searchParams.get("action") || "ticket";
+    const ticketId = u.searchParams.get("ticketId") || "";
+    const token    = u.searchParams.get("token") || "";
+
+    const profile = await liff.getProfile().catch(()=>null);
+    const context = liff.getContext?.() || {};
+    const userId = profile?.userId || context.userId || "";
+    const displayName = profile?.displayName || "";
+
+    // ===== 送單 =====
+    if (action === "ticket") {
+      $("title").textContent = "問題工單";
+      $("subtitle").textContent = "請填寫以下資訊，我們將盡快與您聯絡。";
+      show($("ticketForm"));
+
+      const hourStart = document.querySelector('select[name="hour_start"]');
+      const hourEnd   = document.querySelector('select[name="hour_end"]');
+      buildHourSelect(hourStart, "開始");
+      buildHourSelect(hourEnd,   "結束");
+
+      $("ticketForm").addEventListener("submit", async (e)=>{
+        e.preventDefault();
+        const btn = $("submitBtn");
+        btn.disabled = true; $("msg").className = "msg"; $("msg").innerText = "送出中…";
+
+        const fd = new FormData(e.currentTarget);
+        const payload = Object.fromEntries(fd);
+
+        const hs = payload.hour_start, he = payload.hour_end;
+        if (hs && he) {
+          if (+he <= +hs) {
+            $("msg").className = "msg err";
+            $("msg").innerText = "結束時間需晚於開始時間。";
+            btn.disabled = false; return;
+          }
+          payload.contact_time = `${hs}:00-${he}:00`;
+        }
+        delete payload.hour_start; delete payload.hour_end;
+
+        payload.is_student = (payload.identity === "在校生");
+        payload.user_id = userId;
+        payload.user_name = displayName;
+        payload.kind = "ticket";
+
+        try {
+          const r = await post(payload);
+          const j = await r.json().catch(()=>({}));
+          $("msg").className = "msg ok";
+          $("msg").innerText = j.message || "已送出，謝謝！";
+          btn.textContent = "已送出"; btn.disabled = true; btn.style.opacity = "0.7";
+        } catch (err) {
+          $("msg").className = "msg err";
+          $("msg").innerText = "送出失敗：" + (err?.message || err);
+          btn.disabled = false;
+        }
+      });
+    }
+
+    // ===== 查看 / 結案 =====
+    if (action === "resolve") {
+      $("title").textContent = "查看／處理工單";
+      $("subtitle").textContent = "請確認工單內容，並輸入處理人姓名完成結案。";
+      show($("resolveForm"));
+      $("tid").value = ticketId;
+      document.querySelector('input[name="handler_name"]').value = displayName || "";
+
+      // 預覽
+      try {
+        const r1 = await post({
+          kind: "resolve",
+          act:  "resolve",
+          op:   "preview",
+          ticket_id: ticketId,
+          user_id:   userId,
+        });
+        const raw = await r1.text();
+        let j1 = {};
+        try { j1 = JSON.parse(raw); } catch { j1 = { message: raw }; }
+        const t = normalizeTicket(j1);
+        renderPreview($("previewBox"), t || {});
+        if (t && String(t["狀態"] || "").toUpperCase() !== "OPEN") {
+          lockResolveUI("此工單已結案。");
+        }
+      } catch (err) {
+        $("resolveMsg").className = "msg err";
+        $("resolveMsg").innerText = "讀取工單內容失敗（仍可直接結案）。";
+      }
+
+      // 結案
+      $("resolveForm").addEventListener("submit", async (e)=>{
+        e.preventDefault();
+        const payload = Object.fromEntries(new FormData(e.currentTarget));
+        payload.ticket_id       = ticketId;
+        payload.token           = token;
+        payload.handler_user_id = userId;
+        payload.kind = "resolve";
+        payload.act  = "resolve";
+        payload.op   = "commit";
+
+        if (!confirm(`確認將工單 ${ticketId} 標記為已處理？\n處理人：${payload.handler_name || displayName || "-"}`)) {
+          return;
+        }
+
+        const btn = $("resolveBtn");
+        btn.disabled = true; $("resolveMsg").className = "msg"; $("resolveMsg").innerText = "送出中…";
+
+        try {
+          const r2 = await post(payload);
+          const raw2 = await r2.text();
+          let j2 = {};
+          try { j2 = JSON.parse(raw2); } catch { j2 = { message: raw2 }; }
+
+          const t2 = normalizeTicket(j2);
+          if (t2 && Object.keys(t2).length) renderPreview($("previewBox"), t2);
+
+          $("resolveMsg").className = "msg ok";
+          $("resolveMsg").innerText = j2.message || "已結案，感謝！";
+          lockResolveUI();
+        } catch (err) {
+          $("resolveMsg").className = "msg err";
+          $("resolveMsg").innerText = "送出失敗：" + (err?.message || err);
+          $("resolveBtn").disabled = false;
+        }
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
